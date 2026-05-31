@@ -434,4 +434,61 @@
                     ic.lines.forEach((line, lIdx) => {
                         let ly = yLine - (numLines - lIdx) * lineSpacing;
                         svgContent += `<text x="${x+statRadius+textSpacingOffset}" y="${ly+(6*scaleFactor)}" font-size="${20*scaleFactor}" font-weight="bold" fill="#000">${line.zh}</text>`;
-                        svgContent += `<text x="${x+statRadius+textSpacingOffset}" y="${ly+(24*scaleFactor)}" font-size="${16*scaleFactor}" fill="
+                        svgContent += `<text x="${x+statRadius+textSpacingOffset}" y="${ly+(24*scaleFactor)}" font-size="${16*scaleFactor}" fill="#000">${line.en}</text>`;
+                    });
+                }
+                else if (ic.type === "link") {
+                    const linkDist = 130 * scaleFactor;
+                    const connectionWidth = 58 * scaleFactor;
+                    
+                    svgContent += `<line x1="${x}" y1="${yLine}" x2="${x}" y2="${yLine-linkDist}" stroke="#000" stroke-width="${statStroke}"/>`;
+                    
+                    const linkPillHeight = 75 * scaleFactor;
+                    const linkPillY = yLine - linkDist - (linkPillHeight/2);
+                    
+                    ic.lines.forEach((line, lIdx) => {
+                        let ly = yLine - linkDist - (18*scaleFactor) + (lIdx * 36 * scaleFactor); 
+                        svgContent += `<rect x="${x}" y="${ly-(10*scaleFactor)}" width="${connectionWidth}" height="${20*scaleFactor}" rx="${10*scaleFactor}" fill="${line.color}" />`;
+                    });
+
+                    svgContent += `<rect x="${x-statRadius}" y="${linkPillY}" width="${statRadius*2}" height="${linkPillHeight}" rx="${statRadius}" fill="#fff" stroke="#000" stroke-width="${statStroke}"/>`;
+                    
+                    svgContent += `<text x="${x}" y="${linkPillY-(40*scaleFactor)}" font-size="${28*scaleFactor}" font-weight="bold" fill="#000" text-anchor="middle">${ic.linkZh}</text>`;
+                    svgContent += `<text x="${x}" y="${linkPillY-(18*scaleFactor)}" font-size="${18*scaleFactor}" fill="#000" text-anchor="middle">${ic.linkEn}</text>`;
+
+                    ic.lines.forEach((line, lIdx) => {
+                        let ly = yLine - linkDist - (18*scaleFactor) + (lIdx * 36 * scaleFactor); 
+                        svgContent += `<text x="${x+statRadius+textSpacingOffset}" y="${ly+(6*scaleFactor)}" font-size="${20*scaleFactor}" font-weight="bold" fill="#000">${line.zh}</text>`;
+                        svgContent += `<text x="${x+statRadius+textSpacingOffset}" y="${ly+(24*scaleFactor)}" font-size="${16*scaleFactor}" fill="#000">${line.en}</text>`;
+                    });
+                }
+            });
+
+            // Draw Standard Stations Circles and Labels
+            displayStations.forEach((ds) => {
+                const x = ds.x;
+                const isPast = (currentDirection === 1 && ds.realIdx < currentStationIdx) || (currentDirection === -1 && ds.realIdx > currentStationIdx);
+                const isCurrent = (ds.realIdx === currentStationIdx);
+                
+                const nodeStroke = isPast ? data.pastLineColor : "#000000";
+                let fillColor = isPast ? "#ffffff" : "#ffcc00"; 
+                let classBlink = isCurrent ? 'class="blink-station"' : '';
+
+                if (isPast || !ds.station.interchange || ds.station.interchange.type !== "pill") {
+                    svgContent += `<circle ${classBlink} cx="${x}" cy="${yLine}" r="${statRadius}" fill="${fillColor}" stroke="${nodeStroke}" stroke-width="${statStroke}"/>`;
+                }
+
+                let textColor = isPast ? data.pastLineColor : "#000000";
+                svgContent += `<text x="${x}" y="${yLine+(75*scaleFactor)}" font-size="${38*scaleFactor}" font-weight="bold" fill="${textColor}" text-anchor="middle" letter-spacing="2">${ds.station.zh}</text>`;
+                svgContent += `<text x="${x}" y="${yLine+(105*scaleFactor)}" font-size="${20*scaleFactor}" fill="${textColor}" text-anchor="middle">${ds.station.en}</text>`;
+            });
+
+            svgContent += `</g></svg>`;
+            container.innerHTML = svgContent;
+        }
+
+        // Run Initial Assembly Loop
+        generateDRM();
+    </script>
+</body>
+</html>
