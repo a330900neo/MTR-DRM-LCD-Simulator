@@ -18,14 +18,18 @@
             height: 100vh;
             width: 100vw;
             overflow: hidden;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             position: relative;
         }
 
+        /* Comprehensive cross-platform font stack to prevent character drops on iOS WebKit */
         .zh-text {
-            font-family: "Chiron Sung HK", serif;
-            font-optical-sizing: auto;
+            font-family: "Chiron Sung HK", -apple-system, BlinkMacSystemFont, "PingFang HK", "Heiti TC", "Microsoft JhengHei", sans-serif;
             font-style: normal;
+        }
+
+        .en-text {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
         }
 
         #drm-container {
@@ -42,7 +46,7 @@
             display: block;
         }
 
-        /* 0.5Hz Sharp Toggle Animation (2s total cycle) - Used for map and blue bar */
+        /* 0.5Hz Sharp Toggle Animation (2s total cycle) */
         @keyframes blinkAnim {
             0%, 49% { fill: #ffcc00; }
             50%, 100% { fill: #ffffff; }
@@ -148,13 +152,10 @@
             ]
         };
 
-        // Start at a non-interchange station to demonstrate standard flow
-        let currentStationIdx = 10;     
+        let currentStationIdx = 11;     
         let currentDirection = 1;      
         let subState = "ARRIVED";      
 
-        // State Machine refined based on your feedback:
-        // Sequence: ZOOM -> MAP_PRE (Phase 1, No Indicator) -> [Optional IC_ZH -> IC_EN] -> MAP_POST (Phase 2, SHOW Indicator) -> ARRIVED
         function nextStop() {
             const maxIdx = mtrData.stations.length - 1;
             const hasIC = mtrData.stations[currentStationIdx] && mtrData.stations[currentStationIdx].interchange != null;
@@ -169,14 +170,12 @@
                 case "ZOOM":
                     subState = "MAP_PRE"; break;
                 case "MAP_PRE":
-                    // MAP_PRE is Whole Line Phase 1. Next is either IC Phases or Whole Line Phase 2 (MAP_POST)
                     subState = hasIC ? "IC_ZH" : "MAP_POST"; break;
                 case "IC_ZH":
                     subState = "IC_EN"; break;
                 case "IC_EN":
                     subState = "MAP_POST"; break;
                 case "MAP_POST":
-                    // MAP_POST is Whole Line Phase 2 (always has indicator). Next is stop
                     subState = "ARRIVED"; break;
             }
             generateDRM();
@@ -213,6 +212,7 @@
             const data = mtrData;
             const viewBoxWidth = 3200;
             const viewBoxHeight = 900;
+            const centerX = viewBoxWidth / 2;
             
             let svgContent = `<svg viewBox="0 0 ${viewBoxWidth} ${viewBoxHeight}" xmlns="http://www.w3.org/2000/svg">`;
 
@@ -240,7 +240,6 @@
                 const detailPadding = 50;   
                 let centerY = 350;
                 
-                // Uniform Alight Side Yellow Pill (Only shows on ARRIVED stop phase, hidden on LEAVING phase)
                 if (subState === "ARRIVED") {
                     const pWidth = 430;
                     const pHeight = 90;
@@ -248,9 +247,9 @@
                     const py = 70;
                     svgContent += `
                         <rect x="${px}" y="${py}" width="${pWidth}" height="${pHeight}" rx="${pHeight/2}" fill="#fbc423" />
-                        <text x="${px + pWidth/2}" y="${py + 40}" font-weight="bold" fill="#000" text-anchor="middle">
-                            <tspan class="zh-text" font-size="34" x="${px + pWidth/2}" dy="0">請在另一邊落車</tspan>
-                            <tspan font-family="'Segoe UI', Tahoma, Geneva, Verdana, sans-serif" font-size="21" x="${px + pWidth/2}" dy="30">Please exit from the opposite side</tspan>
+                        <text x="${px + pWidth/2}" y="${py + 38}" font-weight="bold" fill="#000" text-anchor="middle" dominant-baseline="central">
+                            <tspan class="zh-text" font-size="34" x="${px + pWidth/2}" dy="-12">請在另一邊落車</tspan>
+                            <tspan class="en-text" font-size="21" x="${px + pWidth/2}" dy="32">Please exit from the opposite side</tspan>
                         </text>
                     `;
                 }
@@ -260,38 +259,32 @@
                 const noticeZh = subState === "ARRIVED" ? "請小心月台空隙" : "請勿靠近車門";
                 const noticeEn = subState === "ARRIVED" ? "Please mind the gap" : "Please stand back from the doors";
                 
-                const zhWidthEst = noticeZh.length * yellowBarFont;
-                const enWidthEst = noticeEn.length * (yellowBarFont * 0.52); 
-                const gapBetweenLanguages = 40;
-                const totalTextWidth = zhWidthEst + gapBetweenLanguages + enWidthEst;
-                
-                const textStartX = (viewBoxWidth / 2) - (totalTextWidth / 2);
+                // Native SVG Central Anchoring strategy ensures no overlapping regardless of font scaling
+                svgContent += `
+                <text x="${centerX}" y="760" font-weight="bold" fill="#000000" text-anchor="middle" dominant-baseline="central">
+                    <tspan class="zh-text" font-size="${yellowBarFont}">${noticeZh}</tspan>
+                    <tspan class="en-text" font-size="${yellowBarFont * 0.72}" dx="45">${noticeEn}</tspan>
+                </text>`;
 
                 if (subState === "ARRIVED") {
                     const gapIconSrc = "https://raw.githubusercontent.com/a330900neo/MTR-DRM-LCD-Simulator/36e77848c53f2df46d8839c9a3535bbe112f4d05/IMG_20260601_173420.png";
                     const iconWidth = 200;
                     const iconHeight = 160;
                     const iconY = 760 - (iconHeight / 2); 
-                    const iconToTextGap = 50; 
                     
-                    const leftIconX = textStartX - iconToTextGap - iconWidth;
+                    // Fixed safety boundaries completely away from fluid text expansions
+                    const leftIconX = 500;
+                    const rightIconX = viewBoxWidth - 500 - iconWidth;
+
                     svgContent += `
                         <g transform="translate(${leftIconX + iconWidth/2}, ${iconY + iconHeight/2}) scale(-1, 1) translate(${-(leftIconX + iconWidth/2)}, ${-(iconY + iconHeight/2)})">
                             <image href="${gapIconSrc}" x="${leftIconX}" y="${iconY}" width="${iconWidth}" height="${iconHeight}" />
                         </g>`;
-
-                    const rightIconX = textStartX + totalTextWidth + iconToTextGap;
                     svgContent += `<image href="${gapIconSrc}" x="${rightIconX}" y="${iconY}" width="${iconWidth}" height="${iconHeight}" />`;
                 }
                 
-                svgContent += `
-                <text x="${textStartX}" y="795" font-size="${yellowBarFont}" font-weight="bold" fill="#000000" text-anchor="start">
-                    <tspan class="zh-text">${noticeZh}</tspan>
-                    <tspan font-family="'Segoe UI', Tahoma, Geneva, Verdana, sans-serif" dx="${gapBetweenLanguages}">${noticeEn}</tspan>
-                </text>`;
-                
                 const groupedBlockWidth = (station.zh.length * zhFontSize) + detailPadding + (circRad * 2) + detailPadding + (station.en.length * enFontSize * 0.55);
-                const groupedBlockStartX = (viewBoxWidth / 2) - (groupedBlockWidth / 2);
+                const groupedBlockStartX = centerX - (groupedBlockWidth / 2);
 
                 svgContent += `<g transform="translate(${groupedBlockStartX}, 0)">`;
                 let currentX = 0; 
@@ -299,7 +292,7 @@
                 currentX += (station.zh.length * zhFontSize) + detailPadding; 
                 svgContent += `<circle class="blink-station" cx="${currentX + circRad}" cy="${centerY}" r="${circRad}" fill="#ffcc00" stroke="#000000" stroke-width="${circStroke}"/>`;
                 currentX += (circRad * 2) + detailPadding; 
-                svgContent += `<text x="${currentX}" y="${centerY + 30}" font-size="${enFontSize}" font-weight="bold" fill="#000000" text-anchor="start">${station.en}</text>`;
+                svgContent += `<text x="${currentX}" y="${centerY + 30}" class="en-text" font-size="${enFontSize}" font-weight="bold" fill="#000000" text-anchor="start">${station.en}</text>`;
                 svgContent += `</g></svg>`;
                 container.innerHTML = svgContent;
                 return; 
@@ -416,7 +409,7 @@
                     const stubLen = 45 * elementScale; 
                     svgContent += `<line x1="${x}" y1="${yLine}" x2="${x}" y2="${yLine-stubLen}" stroke="${ic.lines[0].color}" stroke-width="${trackWidth}" stroke-linecap="round"/>`;
                     svgContent += `<text x="${x}" y="${yLine-stubLen-(40*elementScale)}" class="zh-text" font-size="${24*elementScale}" font-weight="bold" fill="#000" text-anchor="middle">${ic.lines[0].zh}</text>`;
-                    svgContent += `<text x="${x}" y="${yLine-stubLen-(20*elementScale)}" font-size="${16*elementScale}" fill="#000" text-anchor="middle">${ic.lines[0].en}</text>`;
+                    svgContent += `<text x="${x}" y="${yLine-stubLen-(20*elementScale)}" class="en-text" font-size="${16*elementScale}" fill="#000" text-anchor="middle">${ic.lines[0].en}</text>`;
                 }
                 else if (ic.type === "pill") {
                     const numLines = ic.lines.length;
@@ -434,7 +427,7 @@
                     ic.lines.forEach((line, lIdx) => {
                         let ly = yLine - (numLines - lIdx) * lineSpacing;
                         svgContent += `<text x="${textStartX}" y="${ly-(2*elementScale)}" class="zh-text" font-size="${20*elementScale}" font-weight="bold" fill="#000">${line.zh}</text>`;
-                        svgContent += `<text x="${textStartX}" y="${ly+(16*elementScale)}" font-size="${16*elementScale}" fill="#000">${line.en}</text>`;
+                        svgContent += `<text x="${textStartX}" y="${ly+(16*elementScale)}" class="en-text" font-size="${16*elementScale}" fill="#000">${line.en}</text>`;
                     });
                 }
                 else if (ic.type === "link") {
@@ -450,12 +443,12 @@
 
                     svgContent += `<rect x="${x-statRadius}" y="${linkPillY}" width="${statRadius*2}" height="${linkPillHeight}" rx="${statRadius}" fill="#fff" stroke="#000" stroke-width="${statStroke}"/>`;
                     svgContent += `<text x="${x}" y="${linkPillY-(26*elementScale)}" class="zh-text" font-size="${28*elementScale}" font-weight="bold" fill="#000" text-anchor="middle">${ic.linkZh}</text>`;
-                    svgContent += `<text x="${x}" y="${linkPillY-(8*elementScale)}" font-size="${18*elementScale}" fill="#000" text-anchor="middle">${ic.linkEn}</text>`;
+                    svgContent += `<text x="${x}" y="${linkPillY-(8*elementScale)}" class="en-text" font-size="${18*elementScale}" fill="#000" text-anchor="middle">${ic.linkEn}</text>`;
 
                     ic.lines.forEach((line, lIdx) => {
                         let ly = yLine - linkDist - (18*elementScale) + (lIdx * 36 * elementScale); 
                         svgContent += `<text x="${textStartX}" y="${ly-(2*elementScale)}" class="zh-text" font-size="${20*elementScale}" font-weight="bold" fill="#000">${line.zh}</text>`;
-                        svgContent += `<text x="${textStartX}" y="${ly+(16*elementScale)}" font-size="${16*elementScale}" fill="#000">${line.en}</text>`;
+                        svgContent += `<text x="${textStartX}" y="${ly+(16*elementScale)}" class="en-text" font-size="${16*elementScale}" fill="#000">${line.en}</text>`;
                     });
                 }
             });
@@ -474,7 +467,7 @@
 
                 let textColor = isPast ? data.pastLineColor : "#000000";
                 svgContent += `<text x="${x}" y="${yLine+(75*elementScale)}" class="zh-text" font-size="${38*elementScale}" font-weight="bold" fill="${textColor}" text-anchor="middle" letter-spacing="2">${ds.station.zh}</text>`;
-                svgContent += `<text x="${x}" y="${yLine+(105*elementScale)}" font-size="${20*elementScale}" fill="${textColor}" text-anchor="middle">${ds.station.en}</text>`;
+                svgContent += `<text x="${x}" y="${yLine+(105*elementScale)}" class="en-text" font-size="${20*elementScale}" fill="${textColor}" text-anchor="middle">${ds.station.en}</text>`;
             });
 
             // ==========================================
@@ -483,21 +476,20 @@
             svgContent += `
                 <rect x="70" y="70" width="85" height="30" rx="15" fill="${data.lineColor}"/>
                 <text x="175" y="83" class="zh-text" font-size="28" font-weight="bold" fill="#000">港島綫</text>
-                <text x="175" y="105" font-size="16" font-weight="bold" fill="#000">Island Line</text>
+                <text x="175" y="105" class="en-text" font-size="16" font-weight="bold" fill="#000">Island Line</text>
 
                 <g transform="translate(330, 83)">
                     <line x1="0" y1="0" x2="40" y2="0" stroke="#000" stroke-width="3"/>
                     <circle cx="0" cy="0" r="10" fill="#fff" stroke="#000" stroke-width="3"/>
                     <circle cx="40" cy="0" r="10" fill="#fff" stroke="#000" stroke-width="3"/>
                     <text x="65" y="-1" class="zh-text" font-size="22" font-weight="bold" fill="#000">已付車費區域</text>
-                    <text x="65" y="20" font-size="14" font-weight="bold" fill="#000">Paid Area</text>
+                    <text x="65" y="20" class="en-text" font-size="14" font-weight="bold" fill="#000">Paid Area</text>
                 </g>
             `;
 
             // ==========================================
             // ALIGHT INDICATOR YELLOW PILL (MAP PHASES)
-            // Shows explicitly on IC phases and Whole Line Phase 2 (MAP_POST). 
-            // Hidden on Phase 1 (MAP_PRE) and ZOOM.
+            // Shows during MAP_POST (Phase 2), IC_ZH, and IC_EN.
             // ==========================================
             if (subState === "IC_ZH" || subState === "IC_EN" || subState === "MAP_POST") {
                 const pWidth = 430;
@@ -506,9 +498,9 @@
                 const py = 70;
                 svgContent += `
                     <rect x="${px}" y="${py}" width="${pWidth}" height="${pHeight}" rx="${pHeight/2}" fill="#fbc423" />
-                    <text x="${px + pWidth/2}" y="${py + 40}" font-weight="bold" fill="#000" text-anchor="middle">
-                        <tspan class="zh-text" font-size="34" x="${px + pWidth/2}" dy="0">請在另一邊落車</tspan>
-                        <tspan font-family="'Segoe UI', Tahoma, Geneva, Verdana, sans-serif" font-size="21" x="${px + pWidth/2}" dy="30">Please exit from the opposite side</tspan>
+                    <text x="${px + pWidth/2}" y="${py + 38}" font-weight="bold" fill="#000" text-anchor="middle" dominant-baseline="central">
+                        <tspan class="zh-text" font-size="34" x="${px + pWidth/2}" dy="-12">請在另一邊落車</tspan>
+                        <tspan class="en-text" font-size="21" x="${px + pWidth/2}" dy="32">Please exit from the opposite side</tspan>
                     </text>
                 `;
             }
@@ -527,7 +519,7 @@
 
                 const segmentWidth = (viewBoxWidth - 80) / numLines;
                 const isZh = (subState === "IC_ZH");
-                const outlineColor = "#a0a0a0"; // Grey outline
+                const outlineColor = "#a0a0a0"; 
 
                 icLines.forEach((line, lIdx) => {
                     let sectionCenterX = 40 + (segmentWidth * lIdx) + (segmentWidth / 2);
@@ -545,11 +537,10 @@
                     }
                     
                     let iconCircR = 24;
-                    let pillH = Math.round(72 * 1.35); // Horizontal 72 lengthened by 35% vertically = ~97
+                    let pillH = Math.round(72 * 1.35); 
                     let iconY = barY + (barHeight / 2);
                     
                     if (icType === "link") {
-                        // 5:6 Ratio Config for Link Interchange Line Segments
                         let greyLineDist = 75;
                         let colorLineDist = 90; 
                         
@@ -558,35 +549,36 @@
                         let totalW = iconW + 45 + textW; 
                         let startX = sectionCenterX - (totalW / 2);
                         
-                        // Node 1: ONLY this leftmost pill blinks for Link type
+                        // Node 1: Only the leftmost pill blinks for Link type
                         svgContent += `<rect class="blink-station" x="${startX}" y="${iconY - pillH/2}" width="${iconCircR*2}" height="${pillH}" rx="${iconCircR}" fill="#ffffff" stroke="${outlineColor}" stroke-width="4" />`;
                         
-                        // Grey solid connection line
+                        // Grey connection line
                         let gx1 = startX + iconCircR*2;
                         svgContent += `<line x1="${gx1}" y1="${iconY}" x2="${gx1 + greyLineDist}" y2="${iconY}" stroke="${outlineColor}" stroke-width="12" />`;
                         
-                        // Node 2: Static white intermediate pill (Does not blink)
+                        // Node 2: Static intermediate pill
                         let nx2 = gx1 + greyLineDist;
                         svgContent += `<rect x="${nx2}" y="${iconY - pillH/2}" width="${iconCircR*2}" height="${pillH}" rx="${iconCircR}" fill="#ffffff" stroke="${outlineColor}" stroke-width="4" />`;
                         
-                        // Destination Line color connection line (Wider)
+                        // Destination line color connection
                         let lx2 = nx2 + iconCircR*2;
                         svgContent += `<line x1="${lx2}" y1="${iconY}" x2="${lx2 + colorLineDist}" y2="${iconY}" stroke="${line.color}" stroke-width="20" />`;
                         
-                        // Node 3: Static white destination circle (Does not blink)
+                        // Node 3: Static white destination circle
                         let cx3 = lx2 + colorLineDist + iconCircR;
                         svgContent += `<circle cx="${cx3}" cy="${iconY}" r="${iconCircR}" fill="#ffffff" stroke="${outlineColor}" stroke-width="4" />`;
                         
                         let textX = cx3 + iconCircR + 45;
                         
+                        // Render with clean baseline constraints for WebKit safety
                         if (isZh) {
-                            svgContent += `<text x="${textX}" y="${iconY + 24}" class="zh-text" font-size="70" font-weight="bold" fill="#fff" text-anchor="start" letter-spacing="1">${textStr1}</text>`;
+                            svgContent += `<text x="${textX}" y="${iconY}" class="zh-text" font-size="70" font-weight="bold" fill="#fff" text-anchor="start" letter-spacing="1" dominant-baseline="central">${textStr1}</text>`;
                         } else {
                             if (textStr2) {
-                                svgContent += `<text x="${textX}" y="${iconY - 4}" font-size="44" font-weight="bold" fill="#fff" text-anchor="start">${textStr1}</text>`;
-                                svgContent += `<text x="${textX}" y="${iconY + 44}" font-size="44" font-weight="bold" fill="#fff" text-anchor="start">${textStr2}</text>`;
+                                svgContent += `<text x="${textX}" y="${iconY - 24}" class="en-text" font-size="44" font-weight="bold" fill="#fff" text-anchor="start" dominant-baseline="central">${textStr1}</text>`;
+                                svgContent += `<text x="${textX}" y="${iconY + 24}" class="en-text" font-size="44" font-weight="bold" fill="#fff" text-anchor="start" dominant-baseline="central">${textStr2}</text>`;
                             } else {
-                                svgContent += `<text x="${textX}" y="${iconY + 16}" font-size="50" font-weight="bold" fill="#fff" text-anchor="start">${textStr1}</text>`;
+                                svgContent += `<text x="${textX}" y="${iconY}" class="en-text" font-size="50" font-weight="bold" fill="#fff" text-anchor="start" dominant-baseline="central">${textStr1}</text>`;
                             }
                         }
                     } else {
@@ -599,26 +591,24 @@
                         let totalW = iconW + 45 + textW; 
                         let startX = sectionCenterX - (totalW / 2);
                         
-                        // 1. Draw Connecting Line Segment
                         svgContent += `<line x1="${startX + iconCircR*2}" y1="${iconY}" x2="${startX + iconCircR*2 + iconDist}" y2="${iconY}" stroke="${line.color}" stroke-width="${iconLineW}" />`;
                         
-                        // 2. Node 1: Leftmost vertical pill blinks
+                        // Node 1: Left pill blinks
                         svgContent += `<rect class="blink-station" x="${startX}" y="${iconY - pillH/2}" width="${iconCircR*2}" height="${pillH}" rx="${iconCircR}" fill="#ffffff" stroke="${outlineColor}" stroke-width="4" />`;
                         
-                        // 3. Node 2: Right Circle Node ALSO BLINKS for standard Pill interchange
+                        // Node 2: Right circle node blinks for standard interchanges
                         svgContent += `<circle class="blink-station" cx="${startX + iconCircR*2 + iconDist + iconCircR}" cy="${iconY}" r="${iconCircR}" fill="#ffffff" stroke="${outlineColor}" stroke-width="4" />`;
                         
-                        // Render Text
                         let textX = startX + iconW + 45;
                         
                         if (isZh) {
-                            svgContent += `<text x="${textX}" y="${iconY + 24}" class="zh-text" font-size="70" font-weight="bold" fill="#fff" text-anchor="start" letter-spacing="1">${textStr1}</text>`;
+                            svgContent += `<text x="${textX}" y="${iconY}" class="zh-text" font-size="70" font-weight="bold" fill="#fff" text-anchor="start" letter-spacing="1" dominant-baseline="central">${textStr1}</text>`;
                         } else {
                             if (textStr2) {
-                                svgContent += `<text x="${textX}" y="${iconY - 4}" font-size="44" font-weight="bold" fill="#fff" text-anchor="start">${textStr1}</text>`;
-                                svgContent += `<text x="${textX}" y="${iconY + 44}" font-size="44" font-weight="bold" fill="#fff" text-anchor="start">${textStr2}</text>`;
+                                svgContent += `<text x="${textX}" y="${iconY - 24}" class="en-text" font-size="44" font-weight="bold" fill="#fff" text-anchor="start" dominant-baseline="central">${textStr1}</text>`;
+                                svgContent += `<text x="${textX}" y="${iconY + 24}" class="en-text" font-size="44" font-weight="bold" fill="#fff" text-anchor="start" dominant-baseline="central">${textStr2}</text>`;
                             } else {
-                                svgContent += `<text x="${textX}" y="${iconY + 16}" font-size="50" font-weight="bold" fill="#fff" text-anchor="start">${textStr1}</text>`;
+                                svgContent += `<text x="${textX}" y="${iconY}" class="en-text" font-size="50" font-weight="bold" fill="#fff" text-anchor="start" dominant-baseline="central">${textStr1}</text>`;
                             }
                         }
                     }
